@@ -119,7 +119,7 @@
             <div><h2 class="text-base font-semibold">추천 목록</h2><p class="mt-1 text-sm text-zinc-500">오늘 {Math.min(draftSongs.length, SONGS_PER_DAY)}곡 · 대기 {queuedSongCount}곡</p></div>
           </div>
 
-          {#if recommendation?.status === 'DONE'}
+          {#if recommendation && recommendation.usedSongIndexes.length > 0}
             <p class="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800">현재 공개 화면에 사용한 곡이 표시되어 있습니다. 이 목록을 다시 저장하면 사용 기록이 초기화됩니다.</p>
           {/if}
 

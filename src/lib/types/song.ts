@@ -17,7 +17,7 @@ export type SongRecommendation = {
   date: string;
   songs: Song[];
   status: SongRecommendationStatus;
-  selectedSongIndex?: number;
+  usedSongIndexes: number[];
   completedAt?: string;
   updatedAt?: string;
 };

@@ -18,17 +18,30 @@ function getClient() {
   return supabase;
 }
 
+// Keep the existing integer column compatible: 0/1 means one used song, 2 means both.
+function decodeUsedSongIndexes(value: number | null, songCount: number): number[] {
+  if (value === 2) return [0, 1].filter((index) => index < songCount);
+  if (value === 0 || value === 1) return value < songCount ? [value] : [];
+  return [];
+}
+
+function encodeUsedSongIndexes(indexes: number[]): number | null {
+  if (indexes.includes(0) && indexes.includes(1)) return 2;
+  return indexes[0] ?? null;
+}
+
 function mapRow(row: SongRecommendationRow): SongRecommendation {
-  const selectedSongIndex = row.selected_song_index ?? undefined;
-  const hasValidSelection = selectedSongIndex !== undefined && selectedSongIndex < SONGS_PER_DAY && selectedSongIndex < row.songs.length;
+  const dailySongCount = Math.min(row.songs.length, SONGS_PER_DAY);
+  const usedSongIndexes = decodeUsedSongIndexes(row.selected_song_index, dailySongCount);
+  const isComplete = dailySongCount > 0 && usedSongIndexes.length === dailySongCount;
 
   return {
     id: row.id,
     date: row.date,
     songs: row.songs,
-    status: row.status === 'DONE' && hasValidSelection ? 'DONE' : 'PENDING',
-    selectedSongIndex: hasValidSelection ? selectedSongIndex : undefined,
-    completedAt: hasValidSelection ? (row.completed_at ?? undefined) : undefined,
+    status: isComplete ? 'DONE' : 'PENDING',
+    usedSongIndexes,
+    completedAt: isComplete ? (row.completed_at ?? undefined) : undefined,
     updatedAt: row.updated_at ?? undefined
   };
 }
@@ -83,14 +96,19 @@ export async function saveRecommendation(date: string, songs: Song[]): Promise<S
   return mapRow(data);
 }
 
-export async function completeRecommendation(date: string, selectedSongIndex: number): Promise<SongRecommendation> {
+export async function updateRecommendationUsage(date: string, usedSongIndexes: number[], dailySongCount: number): Promise<SongRecommendation> {
+  const normalizedIndexes = [...new Set(usedSongIndexes)]
+    .filter((index) => Number.isInteger(index) && index >= 0 && index < dailySongCount)
+    .sort();
+  const isComplete = dailySongCount > 0 && normalizedIndexes.length === dailySongCount;
+  const now = new Date().toISOString();
   const { data, error } = await getClient()
     .from('song_recommendations')
     .update({
-      status: 'DONE',
-      selected_song_index: selectedSongIndex,
-      completed_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      status: isComplete ? 'DONE' : 'PENDING',
+      selected_song_index: encodeUsedSongIndexes(normalizedIndexes),
+      completed_at: isComplete ? now : null,
+      updated_at: now
     })
     .eq('id', date)
     .select()

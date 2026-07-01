@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { AlertCircle, CalendarDays, CheckCircle2, LoaderCircle, Music2, RefreshCw, RotateCcw } from 'lucide-svelte';
+  import { AlertCircle, CalendarDays, CheckCircle2, Circle, LoaderCircle, Music2, RefreshCw, RotateCcw } from 'lucide-svelte';
   import PublicSongCard from '../../../components/songs/public-song-card.svelte';
-  import { completeRecommendation, getRecommendation, reopenRecommendation, SONGS_PER_DAY } from '$lib/services/song-recommendation-service';
+  import { getRecommendation, reopenRecommendation, SONGS_PER_DAY, updateRecommendationUsage } from '$lib/services/song-recommendation-service';
   import type { SongRecommendation } from '$lib/types/song';
   import { formatDisplayDate, getTodayId } from '$lib/utils/date';
 
@@ -13,6 +13,7 @@
   let isReopening = $state(false);
   let errorMessage = $state('');
   const todaysSongs = $derived(recommendation?.songs.slice(0, SONGS_PER_DAY) ?? []);
+  const usedSongCount = $derived(recommendation?.usedSongIndexes.length ?? 0);
 
   function getErrorMessage(error: unknown): string {
     if (error instanceof Error) return error.message;
@@ -32,12 +33,15 @@
     }
   }
 
-  async function markAsUsed(index: number) {
-    if (!recommendation || recommendation.status === 'DONE') return;
+  async function toggleUsed(index: number) {
+    if (!recommendation) return;
     updatingIndex = index;
     errorMessage = '';
     try {
-      recommendation = await completeRecommendation(today, index);
+      const usedSongIndexes = recommendation.usedSongIndexes.includes(index)
+        ? recommendation.usedSongIndexes.filter((usedIndex) => usedIndex !== index)
+        : [...recommendation.usedSongIndexes, index];
+      recommendation = await updateRecommendationUsage(today, usedSongIndexes, todaysSongs.length);
     } catch (error) {
       errorMessage = getErrorMessage(error);
     } finally {
@@ -88,33 +92,39 @@
         <div><Music2 class="mx-auto size-7 text-zinc-400" /><h2 class="mt-3 font-semibold">오늘 등록된 추천곡이 없습니다.</h2><p class="mt-1 text-sm text-zinc-500">추천곡이 등록되면 이곳에서 바로 볼 수 있어요.</p></div>
       </div>
     {:else}
-      {#if recommendation.status === 'DONE' && recommendation.selectedSongIndex !== undefined}
-        <section class="mb-8 flex flex-col gap-4 rounded-2xl bg-zinc-950 p-5 text-white sm:flex-row sm:items-center sm:justify-between sm:p-6" aria-label="오늘 사용한 곡">
+      <section class="mb-8 rounded-3xl border border-zinc-200 bg-zinc-50 p-5 sm:p-6" aria-label="오늘의 사용 현황">
+        <div class="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400"><CheckCircle2 class="size-4" />Used today</div>
-            <p class="mt-2 text-xl font-bold">{recommendation.songs[recommendation.selectedSongIndex]?.title}</p>
-            <p class="mt-1 text-sm text-zinc-400">{recommendation.songs[recommendation.selectedSongIndex]?.artist} · 오늘 사용한 곡</p>
+            <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500"><CheckCircle2 class="size-4" />Today's progress</div>
+            <p class="mt-2 text-2xl font-black tracking-tight">{usedSongCount}/{todaysSongs.length}곡 사용 완료</p>
+            <p class="mt-1 text-sm text-zinc-500">{usedSongCount === todaysSongs.length ? '오늘의 추천곡을 모두 사용했어요.' : usedSongCount === 0 ? '사용한 곡을 하나씩 체크해 주세요.' : '좋아요. 이제 한 곡 남았어요.'}</p>
           </div>
-          <button type="button" class="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-zinc-700 px-4 text-sm font-semibold hover:bg-zinc-900 disabled:opacity-50" onclick={clearUsedSong} disabled={isReopening}>
-            {#if isReopening}<LoaderCircle class="mr-2 size-4 animate-spin" />{:else}<RotateCcw class="mr-2 size-4" />{/if}
-            선택 취소
+          <div class="flex items-center gap-2" aria-label={`${todaysSongs.length}곡 중 ${usedSongCount}곡 사용 완료`}>
+            {#each todaysSongs as _, index}
+              {#if recommendation.usedSongIndexes.includes(index)}<CheckCircle2 class="size-7 text-emerald-600" />{:else}<Circle class="size-7 text-zinc-300" />{/if}
+            {/each}
+          </div>
+        </div>
+        <div class="mt-5 h-2 overflow-hidden rounded-full bg-zinc-200"><div class="h-full rounded-full bg-emerald-600 transition-all" style={`width: ${(usedSongCount / todaysSongs.length) * 100}%`}></div></div>
+        {#if usedSongCount > 0}
+          <button type="button" class="mt-4 inline-flex min-h-11 items-center justify-center text-sm font-semibold text-zinc-600 hover:text-zinc-950 disabled:opacity-50" onclick={clearUsedSong} disabled={isReopening}>
+            {#if isReopening}<LoaderCircle class="mr-2 size-4 animate-spin" />{:else}<RotateCcw class="mr-2 size-4" />{/if}전체 사용 기록 초기화
           </button>
-        </section>
-      {/if}
+        {/if}
+      </section>
 
       <div class="mb-7 flex items-end justify-between gap-3 border-b border-zinc-200 pb-4">
         <div><p class="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400">Selected for today</p><h2 class="mt-1 text-xl font-bold">추천 플레이리스트</h2></div>
         <p class="text-sm font-semibold tabular-nums text-zinc-500">{String(todaysSongs.length).padStart(2, '0')} tracks</p>
       </div>
-      <div class="mx-auto grid max-w-3xl grid-cols-2 gap-x-4 gap-y-10 sm:gap-x-6 sm:gap-y-12">
+      <div class="mx-auto grid max-w-4xl grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
         {#each todaysSongs as song, index (`${song.provider}-${song.externalId ?? `${song.title}-${song.artist}`}-${index}`)}
           <PublicSongCard
             {song}
             {index}
-            isUsed={recommendation.status === 'DONE' && recommendation.selectedSongIndex === index}
-            canMarkUsed={recommendation.status === 'PENDING'}
+            isUsed={recommendation.usedSongIndexes.includes(index)}
             isUpdating={updatingIndex === index}
-            onMarkUsed={() => markAsUsed(index)}
+            onToggleUsed={() => toggleUsed(index)}
           />
         {/each}
       </div>
