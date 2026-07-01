@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { AlertCircle, CalendarDays, CheckCircle2, LoaderCircle, Music2, RefreshCw, RotateCcw } from 'lucide-svelte';
   import PublicSongCard from '../../../components/songs/public-song-card.svelte';
-  import { completeRecommendation, getRecommendation, reopenRecommendation } from '$lib/services/song-recommendation-service';
+  import { completeRecommendation, getRecommendation, reopenRecommendation, SONGS_PER_DAY } from '$lib/services/song-recommendation-service';
   import type { SongRecommendation } from '$lib/types/song';
   import { formatDisplayDate, getTodayId } from '$lib/utils/date';
 
@@ -12,6 +12,7 @@
   let updatingIndex = $state<number | null>(null);
   let isReopening = $state(false);
   let errorMessage = $state('');
+  const todaysSongs = $derived(recommendation?.songs.slice(0, SONGS_PER_DAY) ?? []);
 
   function getErrorMessage(error: unknown): string {
     if (error instanceof Error) return error.message;
@@ -82,7 +83,7 @@
       <div class="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700" role="alert"><AlertCircle class="mt-0.5 size-4 shrink-0" />{errorMessage}</div>
     {:else if isLoading}
       <div class="grid min-h-72 place-items-center rounded-xl border border-zinc-200"><div class="text-center text-sm text-zinc-500"><LoaderCircle class="mx-auto mb-3 size-6 animate-spin" />추천곡을 불러오는 중이에요.</div></div>
-    {:else if !recommendation || recommendation.songs.length === 0}
+    {:else if !recommendation || todaysSongs.length === 0}
       <div class="grid min-h-72 place-items-center rounded-xl border border-dashed border-zinc-200 bg-zinc-50 p-6 text-center">
         <div><Music2 class="mx-auto size-7 text-zinc-400" /><h2 class="mt-3 font-semibold">오늘 등록된 추천곡이 없습니다.</h2><p class="mt-1 text-sm text-zinc-500">추천곡이 등록되면 이곳에서 바로 볼 수 있어요.</p></div>
       </div>
@@ -103,10 +104,10 @@
 
       <div class="mb-7 flex items-end justify-between gap-3 border-b border-zinc-200 pb-4">
         <div><p class="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400">Selected for today</p><h2 class="mt-1 text-xl font-bold">추천 플레이리스트</h2></div>
-        <p class="text-sm font-semibold tabular-nums text-zinc-500">{String(recommendation.songs.length).padStart(2, '0')} tracks</p>
+        <p class="text-sm font-semibold tabular-nums text-zinc-500">{String(todaysSongs.length).padStart(2, '0')} tracks</p>
       </div>
       <div class="mx-auto grid max-w-3xl grid-cols-2 gap-x-4 gap-y-10 sm:gap-x-6 sm:gap-y-12">
-        {#each recommendation.songs as song, index (`${song.provider}-${song.externalId ?? `${song.title}-${song.artist}`}-${index}`)}
+        {#each todaysSongs as song, index (`${song.provider}-${song.externalId ?? `${song.title}-${song.artist}`}-${index}`)}
           <PublicSongCard
             {song}
             {index}

@@ -1,7 +1,7 @@
 import type { Song, SongRecommendation } from '$lib/types/song';
 import { supabase, supabaseConfigurationError } from './supabase';
 
-export const SONG_LIMIT = 2;
+export const SONGS_PER_DAY = 2;
 
 type SongRecommendationRow = {
   id: string;
@@ -19,14 +19,13 @@ function getClient() {
 }
 
 function mapRow(row: SongRecommendationRow): SongRecommendation {
-  const songs = row.songs.slice(0, SONG_LIMIT);
   const selectedSongIndex = row.selected_song_index ?? undefined;
-  const hasValidSelection = selectedSongIndex !== undefined && selectedSongIndex < songs.length;
+  const hasValidSelection = selectedSongIndex !== undefined && selectedSongIndex < SONGS_PER_DAY && selectedSongIndex < row.songs.length;
 
   return {
     id: row.id,
     date: row.date,
-    songs,
+    songs: row.songs,
     status: row.status === 'DONE' && hasValidSelection ? 'DONE' : 'PENDING',
     selectedSongIndex: hasValidSelection ? selectedSongIndex : undefined,
     completedAt: hasValidSelection ? (row.completed_at ?? undefined) : undefined,
@@ -54,15 +53,16 @@ export async function getRecommendation(date: string): Promise<SongRecommendatio
     .maybeSingle<SongRecommendationRow>();
 
   if (previousError) throw previousError;
-  if (!previous || previous.songs.length === 0) return null;
+  if (!previous) return null;
 
-  return saveRecommendation(date, previous.songs.slice(0, SONG_LIMIT));
+  const queuedSongs = previous.songs.slice(SONGS_PER_DAY);
+  if (queuedSongs.length === 0) return null;
+
+  return saveRecommendation(date, queuedSongs);
 }
 
 export async function saveRecommendation(date: string, songs: Song[]): Promise<SongRecommendation> {
-  if (songs.length === 0 || songs.length > SONG_LIMIT) {
-    throw new Error(`추천곡은 ${SONG_LIMIT}곡까지 저장할 수 있습니다.`);
-  }
+  if (songs.length === 0) throw new Error('추천곡을 한 곡 이상 추가해 주세요.');
 
   const payload = {
     id: date,
