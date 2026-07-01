@@ -1,6 +1,8 @@
 import type { Song, SongRecommendation } from '$lib/types/song';
 import { supabase, supabaseConfigurationError } from './supabase';
 
+export const SONG_LIMIT = 2;
+
 type SongRecommendationRow = {
   id: string;
   date: string;
@@ -17,29 +19,51 @@ function getClient() {
 }
 
 function mapRow(row: SongRecommendationRow): SongRecommendation {
+  const songs = row.songs.slice(0, SONG_LIMIT);
+  const selectedSongIndex = row.selected_song_index ?? undefined;
+  const hasValidSelection = selectedSongIndex !== undefined && selectedSongIndex < songs.length;
+
   return {
     id: row.id,
     date: row.date,
-    songs: row.songs,
-    status: row.status ?? 'PENDING',
-    selectedSongIndex: row.selected_song_index ?? undefined,
-    completedAt: row.completed_at ?? undefined,
+    songs,
+    status: row.status === 'DONE' && hasValidSelection ? 'DONE' : 'PENDING',
+    selectedSongIndex: hasValidSelection ? selectedSongIndex : undefined,
+    completedAt: hasValidSelection ? (row.completed_at ?? undefined) : undefined,
     updatedAt: row.updated_at ?? undefined
   };
 }
 
 export async function getRecommendation(date: string): Promise<SongRecommendation | null> {
-  const { data, error } = await getClient()
+  const client = getClient();
+  const { data, error } = await client
     .from('song_recommendations')
     .select('*')
     .eq('id', date)
     .maybeSingle<SongRecommendationRow>();
 
   if (error) throw error;
-  return data ? mapRow(data) : null;
+  if (data) return mapRow(data);
+
+  const { data: previous, error: previousError } = await client
+    .from('song_recommendations')
+    .select('*')
+    .lt('date', date)
+    .order('date', { ascending: false })
+    .limit(1)
+    .maybeSingle<SongRecommendationRow>();
+
+  if (previousError) throw previousError;
+  if (!previous || previous.songs.length === 0) return null;
+
+  return saveRecommendation(date, previous.songs.slice(0, SONG_LIMIT));
 }
 
 export async function saveRecommendation(date: string, songs: Song[]): Promise<SongRecommendation> {
+  if (songs.length === 0 || songs.length > SONG_LIMIT) {
+    throw new Error(`추천곡은 ${SONG_LIMIT}곡까지 저장할 수 있습니다.`);
+  }
+
   const payload = {
     id: date,
     date,

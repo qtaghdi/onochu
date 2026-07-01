@@ -105,7 +105,7 @@
         <div><p class="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400">Selected for today</p><h2 class="mt-1 text-xl font-bold">추천 플레이리스트</h2></div>
         <p class="text-sm font-semibold tabular-nums text-zinc-500">{String(recommendation.songs.length).padStart(2, '0')} tracks</p>
       </div>
-      <div class="grid grid-cols-2 gap-x-4 gap-y-10 sm:gap-x-6 sm:gap-y-12 lg:grid-cols-3">
+      <div class="mx-auto grid max-w-3xl grid-cols-2 gap-x-4 gap-y-10 sm:gap-x-6 sm:gap-y-12">
         {#each recommendation.songs as song, index (`${song.provider}-${song.externalId ?? `${song.title}-${song.artist}`}-${index}`)}
           <PublicSongCard
             {song}

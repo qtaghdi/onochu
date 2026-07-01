@@ -22,7 +22,7 @@ PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 
 Supabase SQL Editor에서 `supabase/schema.sql`을 실행하세요. 이 앱은 로그인 없이 사용하는 MVP이므로 테이블의 select, insert, update를 `anon` 역할에 공개합니다. 민감한 데이터를 저장하지 마세요.
 
-기존 2곡 버전의 테이블을 이미 만들었다면 `supabase/migrations/20260629-allow-multiple-songs.sql`도 한 번 실행해 게시곡 인덱스의 2곡 제한을 제거하세요.
+추천곡은 매일 2곡까지 사용하며, 새 날짜의 데이터가 없으면 가장 최근에 저장한 목록을 자동으로 이어받습니다. 날짜가 바뀌면 사용 완료 상태만 초기화됩니다.
 
 ## GitHub Pages
 

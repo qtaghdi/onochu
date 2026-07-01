@@ -7,7 +7,8 @@
   import SongSlot from '../../../components/songs/song-slot.svelte';
   import {
     getRecommendation,
-    saveRecommendation
+    saveRecommendation,
+    SONG_LIMIT
   } from '$lib/services/song-recommendation-service';
   import type { Song, SongRecommendation } from '$lib/types/song';
   import { formatDisplayDate, getTodayId } from '$lib/utils/date';
@@ -20,7 +21,8 @@
   let errorMessage = $state('');
   let successMessage = $state('');
 
-  const canSave = $derived(draftSongs.length > 0 && !isSaving);
+  const hasReachedSongLimit = $derived(draftSongs.length >= SONG_LIMIT);
+  const canSave = $derived(draftSongs.length === SONG_LIMIT && !isSaving);
 
   function getErrorMessage(error: unknown, fallback: string): string {
     if (error instanceof Error) return error.message;
@@ -43,6 +45,12 @@
   }
 
   function addSong(song: Song) {
+    if (hasReachedSongLimit) {
+      errorMessage = `추천곡은 ${SONG_LIMIT}곡까지만 추가할 수 있습니다.`;
+      successMessage = '';
+      return;
+    }
+
     const alreadyAdded = draftSongs.some((item) =>
       song.externalId
         ? item.provider === song.provider && item.externalId === song.externalId
@@ -92,7 +100,7 @@
       <div>
         <div class="mb-2 flex items-center gap-2 text-sm font-medium text-zinc-500"><CalendarDays class="size-4" />{formatDisplayDate(today)}</div>
         <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">오늘의 추천곡 관리</h1>
-        <p class="mt-2 text-sm text-zinc-500">추천할 곡을 원하는 만큼 추가한 뒤 한 번에 저장하세요.</p>
+        <p class="mt-2 text-sm text-zinc-500">매일 사용할 추천곡 2곡을 저장하세요. 저장한 곡은 다음 날에도 유지됩니다.</p>
       </div>
       <div class="grid grid-cols-2 gap-2 sm:flex">
         <a class="inline-flex min-h-11 items-center justify-center rounded-xl border border-zinc-200 px-4 text-sm font-medium hover:bg-zinc-50" href={`${base}/songs/today`}><ExternalLink class="mr-2 size-4" />공개 화면</a>
@@ -108,13 +116,14 @@
     {:else}
       <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,0.82fr)]">
         <div class="rounded-xl border border-zinc-200 p-4 sm:p-6">
-          <SongSearch onAdd={addSong} />
-          <div class="mt-6"><ManualSongForm onAdd={addSong} /></div>
+          <SongSearch onAdd={addSong} disabled={hasReachedSongLimit} />
+          <div class="mt-6"><ManualSongForm onAdd={addSong} disabled={hasReachedSongLimit} /></div>
+          {#if hasReachedSongLimit}<p class="mt-4 text-center text-sm text-zinc-500">2곡을 모두 추가했습니다. 곡을 바꾸려면 목록에서 먼저 삭제해 주세요.</p>{/if}
         </div>
 
         <aside class="rounded-xl border border-zinc-200 p-4 sm:p-6 lg:sticky lg:top-6">
           <div class="mb-4 flex items-start justify-between gap-3">
-            <div><h2 class="text-base font-semibold">추천 목록</h2><p class="mt-1 text-sm text-zinc-500">현재 {draftSongs.length}곡</p></div>
+            <div><h2 class="text-base font-semibold">추천 목록</h2><p class="mt-1 text-sm text-zinc-500">현재 {draftSongs.length}/{SONG_LIMIT}곡</p></div>
           </div>
 
           {#if recommendation?.status === 'DONE'}
@@ -135,7 +144,7 @@
             {#if isSaving}<LoaderCircle class="mr-2 size-4 animate-spin" />{:else}<Save class="mr-2 size-4" />{/if}
             {isSaving ? '저장 중' : `추천곡 ${draftSongs.length}개 저장`}
           </button>
-          {#if draftSongs.length === 0}<p class="mt-2 text-center text-xs text-zinc-500">한 곡 이상 추가하면 저장할 수 있어요.</p>{/if}
+          {#if draftSongs.length < SONG_LIMIT}<p class="mt-2 text-center text-xs text-zinc-500">추천곡 2곡을 모두 추가하면 저장할 수 있어요.</p>{/if}
         </aside>
       </div>
     {/if}
